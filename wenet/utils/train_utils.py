@@ -236,12 +236,13 @@ def check_modify_and_save_config(args, configs, symbol_table):
     return configs
 
 
-def init_dataset_and_dataloader(args, configs, tokenizer, seed=777):
+def init_dataset_and_dataloader(args, configs, tokenizer, seed=777, reverb_data=None, noise_data=None):
     generator = torch.Generator()
     generator.manual_seed(seed)
     train_conf = configs['dataset_conf']
     cv_conf = copy.deepcopy(train_conf)
     cv_conf['speed_perturb'] = False
+    cv_conf['add_reverb_noise'] = False
     cv_conf['spec_aug'] = False
     cv_conf['spec_sub'] = False
     cv_conf['spec_trim'] = False
@@ -249,12 +250,12 @@ def init_dataset_and_dataloader(args, configs, tokenizer, seed=777):
 
     configs['vocab_size'] = tokenizer.vocab_size()
     train_dataset = Dataset(args.data_type, args.train_data, tokenizer,
-                            train_conf, True)
+                            train_conf, True, reverb_data=reverb_data, noise_data=noise_data)
     cv_dataset = Dataset(args.data_type,
                          args.cv_data,
                          tokenizer,
                          cv_conf,
-                         partition=False)
+                         partition=False, reverb_data=reverb_data, noise_data=noise_data)
 
     # NOTE(xcsong): Why we prefer persistent_workers=True ?
     #   https://discuss.pytorch.org/t/what-are-the-dis-advantages-of-persistent-workers/102110

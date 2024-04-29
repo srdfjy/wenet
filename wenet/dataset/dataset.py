@@ -26,7 +26,9 @@ def Dataset(data_type,
             data_list_file,
             tokenizer: Optional[BaseTokenizer] = None,
             conf=None,
-            partition=True):
+            partition=True,
+            reverb_data=None,
+            noise_data=None):
     """ Construct dataset from arguments
 
         We have two shuffle stage in the Dataset. The first is global
@@ -67,6 +69,10 @@ def Dataset(data_type,
     speed_perturb = conf.get('speed_perturb', False)
     if speed_perturb:
         dataset = dataset.map(partial(processor.speed_perturb))
+
+    add_reverb_noise = conf.get('add_reverb_noise', False)
+    if add_reverb_noise:
+        dataset = dataset.map(partial(processor.add_reverb_noise, reverb_data=reverb_data, noise_data=noise_data, resample_rate=resample_conf['resample_rate']))
 
     feats_type = conf.get('feats_type', 'fbank')
     assert feats_type in ['fbank', 'mfcc', 'log_mel_spectrogram']

@@ -29,38 +29,41 @@ class CollateFunc(object):
         var_stat = torch.zeros(self.feat_dim)
         number = 0
         for item in batch:
-            value = item[1].strip().split(",")
-            assert len(value) == 3 or len(value) == 1
-            wav_path = value[0]
-            sample_rate = torchaudio.backend.sox_io_backend.info(
-                wav_path).sample_rate
-            resample_rate = sample_rate
-            # len(value) == 3 means segmented wav.scp,
-            # len(value) == 1 means original wav.scp
-            if len(value) == 3:
-                start_frame = int(float(value[1]) * sample_rate)
-                end_frame = int(float(value[2]) * sample_rate)
-                waveform, sample_rate = torchaudio.backend.sox_io_backend.load(
-                    filepath=wav_path,
-                    num_frames=end_frame - start_frame,
-                    frame_offset=start_frame)
-            else:
-                waveform, sample_rate = torchaudio.load(item[1])
+            try:
+                value = item[1].strip().split(",")
+                assert len(value) == 3 or len(value) == 1
+                wav_path = value[0]
+                sample_rate = torchaudio.backend.sox_io_backend.info(
+                    wav_path).sample_rate
+                resample_rate = sample_rate
+                # len(value) == 3 means segmented wav.scp,
+                # len(value) == 1 means original wav.scp
+                if len(value) == 3:
+                    start_frame = int(float(value[1]) * sample_rate)
+                    end_frame = int(float(value[2]) * sample_rate)
+                    waveform, sample_rate = torchaudio.backend.sox_io_backend.load(
+                        filepath=wav_path,
+                        num_frames=end_frame - start_frame,
+                        frame_offset=start_frame)
+                else:
+                    waveform, sample_rate = torchaudio.load(item[1])
 
-            waveform = waveform * (1 << 15)
-            if self.resample_rate != 0 and self.resample_rate != sample_rate:
-                resample_rate = self.resample_rate
-                waveform = torchaudio.transforms.Resample(
-                    orig_freq=sample_rate, new_freq=resample_rate)(waveform)
+                waveform = waveform * (1 << 15)
+                if self.resample_rate != 0 and self.resample_rate != sample_rate:
+                    resample_rate = self.resample_rate
+                    waveform = torchaudio.transforms.Resample(
+                        orig_freq=sample_rate, new_freq=resample_rate)(waveform)
 
-            mat = kaldi.fbank(waveform,
-                              num_mel_bins=self.feat_dim,
-                              dither=0.0,
-                              energy_floor=0.0,
-                              sample_frequency=resample_rate)
-            mean_stat += torch.sum(mat, axis=0)
-            var_stat += torch.sum(torch.square(mat), axis=0)
-            number += mat.shape[0]
+                mat = kaldi.fbank(waveform,
+                                  num_mel_bins=self.feat_dim,
+                                  dither=0.0,
+                                  energy_floor=0.0,
+                                  sample_frequency=resample_rate)
+                mean_stat += torch.sum(mat, axis=0)
+                var_stat += torch.sum(torch.square(mat), axis=0)
+                number += mat.shape[0]
+            except Exception as e:
+                print("bad wav {}".format(item))
         return number, mean_stat, var_stat
 
 

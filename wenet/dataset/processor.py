@@ -15,18 +15,22 @@
 
 import io
 import json
+import logging
+import random
 from subprocess import PIPE, Popen
 from urllib.parse import urlparse
-from langid.langid import LanguageIdentifier, model
-import logging
-import librosa
-import random
 
+import librosa
+import numpy as np
 import torch
-from torch.nn.utils.rnn import pad_sequence
+import torch.nn.functional as F
 import torchaudio
 import torchaudio.compliance.kaldi as kaldi
-import torch.nn.functional as F
+from langid.langid import LanguageIdentifier, model
+from scipy import signal
+from scipy.io import wavfile
+from torch.nn.utils.rnn import pad_sequence
+
 from wenet.text.base_tokenizer import BaseTokenizer
 
 torchaudio.utils.sox_utils.set_buffer_size(16500)
@@ -187,6 +191,116 @@ def speed_perturb(sample, speeds=None):
             waveform, sample_rate,
             [['speed', str(speed)], ['rate', str(sample_rate)]])
         sample['wav'] = wav
+
+    return sample
+
+
+def get_random_chunk(data, chunk_len):
+    """ Get random chunk
+
+        Args:
+            data: torch.Tensor (random len)
+            chunk_len: chunk length
+
+        Returns:
+            torch.Tensor (exactly chunk_len)
+    """
+    data_len = len(data)
+    data_shape = data.shape
+    # random chunk
+    if data_len >= chunk_len:
+        chunk_start = random.randint(0, data_len - chunk_len)
+        data = data[chunk_start:chunk_start + chunk_len]
+        # re-clone the data to avoid memory leakage
+        if type(data) == torch.Tensor:
+            data = data.clone()
+        else:  # np.array
+            data = data.copy()
+    else:
+        # padding
+        repeat_factor = chunk_len // data_len + 1
+        repeat_shape = repeat_factor if len(data_shape) == 1 else (
+            repeat_factor, 1)
+        if type(data) == torch.Tensor:
+            data = data.repeat(repeat_shape)
+        else:  # np.array
+            data = np.tile(data, repeat_shape)
+        data = data[:chunk_len]
+
+    return data
+
+
+def add_reverb_noise(sample, reverb_data=None, noise_data=None, resample_rate=16000):
+    label = sample['label']
+    tokens = sample['tokens']
+    aug_prob = random.random()
+    waveform = sample['wav']
+
+    if "<NOISE>" not in tokens and aug_prob < 0.07:
+        aug_type = random.randint(1, 2)
+        audio = waveform.numpy()[0]
+        audio_len = audio.shape[0]
+        if aug_type == 1:
+            # add reverberation
+            _, rir_data = reverb_data.random_one()
+            rir_sr, rir_audio = wavfile.read(io.BytesIO(rir_data))
+            rir_audio = rir_audio.astype(np.float32)
+            if rir_sr != resample_rate:
+                rir_audio = signal.resample(
+                    rir_audio,
+                    int(len(rir_audio) / rir_sr * resample_rate))
+            rir_audio = rir_audio / np.sqrt(np.sum(rir_audio ** 2))
+            out_audio = signal.convolve(audio, rir_audio,
+                                        mode='full')[:audio_len]
+        else:
+            # add additive noise
+            pad_type = random.randint(1, 3)
+            extra_length_samples = int(random.uniform(0, 3) * resample_rate)  # 3s
+            silence = np.zeros(extra_length_samples, dtype=audio.dtype)
+            if pad_type == 1:
+                audio_len += extra_length_samples
+                audio = np.concatenate((silence, audio))
+                label.insert(0, 3)
+                tokens.insert(0, "<NOISE>")
+                sample['label'] = label
+                sample['tokens'] = tokens
+            elif pad_type == 2:
+                audio_len += extra_length_samples
+                audio = np.concatenate((audio, silence))
+                label.append(3)
+                tokens.append("<NOISE>")
+                sample['label'] = label
+                sample['tokens'] = tokens
+            audio_db = 10 * np.log10(np.mean(audio ** 2) + 1e-4)
+
+            key, noise_data = noise_data.random_one()
+            if key.startswith('noise'):
+                snr_range = [0, 15]
+            elif key.startswith('speech'):
+                snr_range = [10, 30]
+            elif key.startswith('music'):
+                snr_range = [5, 15]
+            else:
+                snr_range = [0, 15]
+            noise_sr, noise_audio = wavfile.read(io.BytesIO(noise_data))
+            noise_audio = noise_audio.astype(np.float32) / (1 << 15)
+            if noise_sr != resample_rate:
+                # Since the noise audio could be very long, it must be
+                # chunked first before resampled (to save time)
+                noise_audio = get_random_chunk(
+                    noise_audio, int(audio_len / resample_rate * noise_sr))
+                noise_audio = signal.resample(noise_audio, audio_len)
+            else:
+                noise_audio = get_random_chunk(noise_audio, audio_len)
+            noise_snr = random.uniform(snr_range[0], snr_range[1])
+            noise_db = 10 * np.log10(np.mean(noise_audio ** 2) + 1e-4)
+            noise_audio = np.sqrt(10 ** (
+                    (audio_db - noise_db - noise_snr) / 10)) * noise_audio
+            out_audio = audio + noise_audio
+
+        # normalize into [-1, 1]
+        out_audio = out_audio / (np.max(np.abs(out_audio)) + 1e-4)
+        sample['wav'] = torch.from_numpy(out_audio).unsqueeze(0)
 
     return sample
 

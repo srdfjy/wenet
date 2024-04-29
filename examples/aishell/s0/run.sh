@@ -13,7 +13,7 @@ else
 fi
 # You can also manually specify CUDA_VISIBLE_DEVICES
 # if you don't want to utilize all available GPU resources.
-export CUDA_VISIBLE_DEVICES="${gpu_list}"
+#export CUDA_VISIBLE_DEVICES="${gpu_list}"
 echo "CUDA_VISIBLE_DEVICES is ${CUDA_VISIBLE_DEVICES}"
 
 stage=0 # start from 0 if you need to start from data preparation
@@ -36,7 +36,7 @@ dict=data/dict/lang_char.txt
 # data_type can be `raw` or `shard`. Typically, raw is used for small dataset,
 # `shard` is used for large dataset which is over 1k hours, and `shard` is
 # faster on reading data and training.
-data_type=raw
+data_type=shard
 num_utts_per_shard=1000
 
 train_set=train
@@ -51,8 +51,8 @@ train_set=train
 #    trained model, and freeze encoder module, otherwise there will be a
 #    autograd error
 train_config=conf/train_conformer.yaml
-dir=exp/conformer
-tensorboard_dir=tensorboard
+dir=/data/exp
+tensorboard_dir=${dir}/tensorboard
 checkpoint=
 num_workers=8
 prefetch=500
@@ -163,8 +163,8 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
       --train_engine ${train_engine} \
       --config $train_config \
       --data_type  $data_type \
-      --train_data data/$train_set/data.list \
-      --cv_data data/dev/data.list \
+      --train_data $data/train_data.list \
+      --cv_data $data/dev_data.list \
       ${checkpoint:+--checkpoint $checkpoint} \
       --model_dir $dir \
       --tensorboard_dir ${tensorboard_dir} \
@@ -193,23 +193,23 @@ if [ ${stage} -le 5 ] && [ ${stop_stage} -ge 5 ]; then
   decoding_chunk_size=
   ctc_weight=0.3
   reverse_weight=0.5
-  python wenet/bin/recognize.py --gpu 0 \
-    --modes $decode_modes \
-    --config $dir/train.yaml \
-    --data_type $data_type \
-    --test_data data/test/data.list \
-    --checkpoint $decode_checkpoint \
-    --beam_size 10 \
-    --batch_size 32 \
-    --blank_penalty 0.0 \
-    --ctc_weight $ctc_weight \
-    --reverse_weight $reverse_weight \
-    --result_dir $dir \
-    ${decoding_chunk_size:+--decoding_chunk_size $decoding_chunk_size}
-  for mode in ${decode_modes}; do
-    python tools/compute-wer.py --char=1 --v=1 \
-      data/test/text $dir/$mode/text > $dir/$mode/wer
-  done
+#  python wenet/bin/recognize.py --gpu 0 \
+#    --modes $decode_modes \
+#    --config $dir/train.yaml \
+#    --data_type $data_type \
+#    --test_data data/test/data.list \
+#    --checkpoint $decode_checkpoint \
+#    --beam_size 10 \
+#    --batch_size 32 \
+#    --blank_penalty 0.0 \
+#    --ctc_weight $ctc_weight \
+#    --reverse_weight $reverse_weight \
+#    --result_dir $dir \
+#    ${decoding_chunk_size:+--decoding_chunk_size $decoding_chunk_size}
+#  for mode in ${decode_modes}; do
+#    python tools/compute-wer.py --char=1 --v=1 \
+#      data/test/text $dir/$mode/text > $dir/$mode/wer
+#  done
 fi
 
 

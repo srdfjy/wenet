@@ -25,6 +25,7 @@ import torch.distributed as dist
 
 from torch.distributed.elastic.multiprocessing.errors import record
 
+from wenet.dataset.lmdb_data import LmdbData
 from wenet.utils.executor import Executor
 from wenet.utils.config import override_config
 from wenet.utils.init_model import init_model
@@ -75,12 +76,17 @@ def main():
     # init tokenizer
     tokenizer = init_tokenizer(configs)
 
+    # init reverb and noise data
+    add_reverb_noise_conf = configs['dataset_conf']['add_reverb_noise_conf']
+    reverb_data = LmdbData(add_reverb_noise_conf.get("reverb_data_path"))
+    noise_data = LmdbData(add_reverb_noise_conf.get("noise_data_path"))
+
     # Init env for ddp OR deepspeed
     _, _, rank = init_distributed(args)
 
     # Get dataset & dataloader
     train_dataset, cv_dataset, train_data_loader, cv_data_loader = \
-        init_dataset_and_dataloader(args, configs, tokenizer)
+        init_dataset_and_dataloader(args, configs, tokenizer, reverb_data=reverb_data, noise_data=noise_data)
 
     # Do some sanity checks and save config to arsg.model_dir
     configs = check_modify_and_save_config(args, configs,
