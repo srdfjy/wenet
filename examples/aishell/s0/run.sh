@@ -13,7 +13,7 @@ else
 fi
 # You can also manually specify CUDA_VISIBLE_DEVICES
 # if you don't want to utilize all available GPU resources.
-#export CUDA_VISIBLE_DEVICES="${gpu_list}"
+export CUDA_VISIBLE_DEVICES="${gpu_list}"
 echo "CUDA_VISIBLE_DEVICES is ${CUDA_VISIBLE_DEVICES}"
 
 stage=0 # start from 0 if you need to start from data preparation
