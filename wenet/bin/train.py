@@ -94,6 +94,15 @@ def main():
 
     # Init asr model from configs
     model, configs = init_model(args, configs)
+    if configs.get("freeze_modules", False):
+        for name, param in model.named_parameters():
+            param.requires_grad = False
+        ignore_modules = configs['freeze_modules_conf']['ignore_modules']
+        for name, param in model.named_parameters():
+            for ignore_module in ignore_modules:
+                if ignore_module in name:
+                    param.requires_grad = True
+                    logging.debug("{} module is not freezed".format(name))
 
     # Check model is jitable & print model archtectures
     trace_and_print_model(args, model)

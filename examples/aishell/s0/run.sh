@@ -54,6 +54,8 @@ train_config=conf/train_conformer.yaml
 dir=/data/exp
 tensorboard_dir=${dir}/tensorboard
 checkpoint=
+enc_init=
+enc_init_mods=
 num_workers=8
 prefetch=500
 
@@ -166,6 +168,8 @@ if [ ${stage} -le 4 ] && [ ${stop_stage} -ge 4 ]; then
       --train_data $data/train_data.list \
       --cv_data $data/dev_data.list \
       ${checkpoint:+--checkpoint $checkpoint} \
+      ${enc_init:+--enc_init $enc_init} \
+      --enc_init_mods $enc_init_mods \
       --model_dir $dir \
       --tensorboard_dir ${tensorboard_dir} \
       --ddp.dist_backend $dist_backend \
