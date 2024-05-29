@@ -123,5 +123,5 @@ freeze_modules: false
 freeze_modules_conf:
   ignore_modules:
     - ctc.ctc_lo
-    - decoder.left_decoder.output_layer
-    - decoder.right_decoder.output_layer
+    - decoder.left_decoder
+    - decoder.right_decoder
