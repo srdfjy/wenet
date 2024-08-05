@@ -77,9 +77,13 @@ def main():
     tokenizer = init_tokenizer(configs)
 
     # init reverb and noise data
-    add_reverb_noise_conf = configs['dataset_conf']['add_reverb_noise_conf']
-    reverb_data = LmdbData(add_reverb_noise_conf.get("reverb_data_path"))
-    noise_data = LmdbData(add_reverb_noise_conf.get("noise_data_path"))
+    if configs['dataset_conf']['add_reverb_noise']:
+        add_reverb_noise_conf = configs['dataset_conf']['add_reverb_noise_conf']
+        reverb_data = LmdbData(add_reverb_noise_conf.get("reverb_data_path"))
+        noise_data = LmdbData(add_reverb_noise_conf.get("noise_data_path"))
+    else:
+        reverb_data = None
+        noise_data = None
 
     # Init env for ddp OR deepspeed
     _, _, rank = init_distributed(args)
